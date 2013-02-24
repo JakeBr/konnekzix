@@ -105,8 +105,34 @@ placeStone (Board arr) stone coords@(x,y)
                   fixNothings n' (xy':xy's)
                     | not $ inRange bs xy'  = []
                     | isJust $ fst nextPosN = []
-                    | otherwise             = nextFixN ++ [(xy, mapSnd (//[(d,n')]) nextPosN)]
+                    | otherwise             = nextFixN ++
+                                              [(xy, mapSnd (//[(d,n')])
+                                              nextPosN)]
                     where nextPosN = arr ! xy'
                           nextFixN = fixNothings (n' + 1) xy's
                   fixNothings _ _ = []
           fix _ _ = (False,[])
+-- Geeze, that's kind of a long function. Gonna fix that while refactoring
+-- the code.
+
+prettyDebug :: Board -> String
+prettyDebug (Board arr) = firstLn ++ concatPieces (fmap (toPiece 1) arr)
+  where firstLn      = concat $ replicate maxX " _____"
+        toPiece n e  = let isNewLn  = n > maxX
+                           endBar   = if isNewLn then "|" else ""
+                           newLn    = if isNewLn then "|" else ""
+                           sndLn    = fmap cutoff [d 3,0,d 2,0,d 4]
+                           thrdLn   = cutoff (d 1) : "____"
+                           cutoff x
+                             | x == 0    = ' '
+                             | otherwise = last . show $ x
+                           d a      = snd e ! a
+                       in  [ "|" ++ stone e ++ endBar ++ newLn
+                           , "|" ++ sndLn   ++ endBar ++ newLn
+                           , "|" ++ thrdLn  ++ endBar ++ newLn]
+        maxX         = snd . snd . bounds $ arr
+        concatPieces = concat . concat . elems
+        stone t      = case fst t of
+                         Nothing            -> "Nothn"
+                         Just (Stone Black) -> "Black"
+                         Just (Stone White) -> "White"
