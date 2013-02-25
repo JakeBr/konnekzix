@@ -16,7 +16,9 @@
 module Base where
 
 import Data.Array
-import Data.Maybe(isJust, isNothing)
+import Data.Maybe
+import Data.List.Split
+import Data.List
 
 -- | 'Board' is the type for storing the current data of a game. It contains
 -- an array, which contains an element for every intersection on the board.
@@ -116,11 +118,11 @@ placeStone (Board arr) stone coords@(x,y)
 -- the code.
 
 prettyDebug :: Board -> String
-prettyDebug (Board arr) = firstLn ++ concatPieces (fmap (toPiece 1) arr)
-  where firstLn      = concat $ replicate maxX " _____"
+prettyDebug (Board arr) = firstLn ++ concatPieces (fmap (toPiece 1) arr) ++ "|"
+  where firstLn      = concat (replicate maxX " _____") ++ "\n"
         toPiece n e  = let isNewLn  = n > maxX
-                           endBar   = if isNewLn then "|" else ""
-                           newLn    = if isNewLn then "|" else ""
+                           endBar   = if isNewLn then "|"  else ""
+                           newLn    = if isNewLn then "\n" else ""
                            sndLn    = fmap cutoff [d 3,0,d 2,0,d 4]
                            thrdLn   = cutoff (d 1) : "____"
                            cutoff x
@@ -131,7 +133,16 @@ prettyDebug (Board arr) = firstLn ++ concatPieces (fmap (toPiece 1) arr)
                            , "|" ++ sndLn   ++ endBar ++ newLn
                            , "|" ++ thrdLn  ++ endBar ++ newLn]
         maxX         = snd . snd . bounds $ arr
-        concatPieces = concat . concat . elems
+        concatPieces a = let go ((l1,l2,l3):ls) = l1 ++ l2 ++ l3 ++ go ls
+                             go [] = []
+                         in  addNewLns . go $ zip3 (line a 1) (line a 2) (line a 3)
+        line a n     = chunksOf (maxX * 6) $ concat (fmap (!! (n - 1)) (elems a))
+        addNewLns s  = let go wasB (x:xs)
+                             | wasB = if x == '|' then go True xs else x : go False xs
+                             | otherwise = if x == '|' then x : go True xs
+                                                       else x : go False xs
+                           go _ [] = []
+                       in  go False . intercalate "|\n" $ chunksOf (maxX * 6) s
         stone t      = case fst t of
                          Nothing            -> "Nothn"
                          Just (Stone Black) -> "Black"
