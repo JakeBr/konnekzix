@@ -25,15 +25,15 @@ import Data.List
 -- Each element may contain a stone and contains some information to see if
 -- the stone is part of a row of multiple stones, horizontally, vertically,
 -- or diagonally. To construct a board, use 'empty'.
-newtype Board = Board (Array Coords (Maybe Stone, Array Int Row))
+newtype Board = Board (Array Coords (Maybe Stone, Array Int Row)) deriving Show
 
 -- | On each intersection of a board, there may be a Stone.
-newtype Stone = Stone Color deriving Eq
+newtype Stone = Stone Color deriving (Show, Eq)
 
 -- | Each player and their stones have a 'Color'.
 data Color = Black
            | White
-           deriving Eq
+           deriving (Show, Eq)
 
 -- | 'Coords' are used to access intersections on a board.
 type Coords = (Int,Int)
@@ -68,54 +68,59 @@ placeStone (Board arr) stone coords@(x,y)
     Left "Stones can only be placed on empty intersections"
   | otherwise = Right
                 (won, Board fixSucs)
-    where (wonPred,getPredRows) =
-            let rows = map getRow [1..4]
-            in  (any id $ map fst rows,
-                listArray (1,4) . map snd $ rows)
-          bs = bounds arr
-          won = wonPred || wonSucs
-          getRow d = let predPos = arr ! cs (-1) d
-                         row     = (snd predPos ! d) + 1
-                     in  if   fst predPos /= Just stone
-                         then (False, 1)
-                         else (row >= 6,row)
-          cs n d
-            | d == 1    = (x + n, y    )
-            | d == 2    = (x    , y + n)
-            | d == 3    = (x + n, y + n)
-            | otherwise = (x - n, y + n)
-          (wonSucs,fixSucs) = let fixed = map (fix 2 .
-                                          (\d -> (d,map (`cs` d) [1..])))
-                                          [1..4]
-                              in  (any id $ map fst fixed
-                                  ,arr' // concatMap snd fixed)
-          arr' = arr // [(coords,(Just stone,getPredRows))]
-          fix :: Int -> (Int, [Coords]) ->
-                 (Bool,[(Coords, (Maybe Stone, Array Int Row))])
-          fix n (d, l@(xy:xys))
-            | not $ inRange bs xy       = (False,[])
-            | isNothing $ fst nextPos   = (False,fixNothings 1 l)
-            | fst nextPos /= Just stone = (False,[])
-            | otherwise                 = (n >= 5 || fst nextFix,
-                                          snd nextFix ++
-                                          [(xy,mapSnd (//[(d,n)]) nextPos)])
-            where nextFix = fix (n + 1) (d,xys)
-                  nextPos = arr ! xy
-                  mapSnd f (p,q) = (p,f q)
-                  fixNothings :: Int -> [Coords] ->
-                                  [(Coords, (Maybe Stone, Array Int Row))]
-                  fixNothings n' (xy':xy's)
-                    | not $ inRange bs xy'  = []
-                    | isJust $ fst nextPosN = []
-                    | otherwise             = nextFixN ++
-                                              [(xy, mapSnd (//[(d,n')])
-                                              nextPosN)]
-                    where nextPosN = arr ! xy'
-                          nextFixN = fixNothings (n' + 1) xy's
-                  fixNothings _ _ = []
-          fix _ _ = (False,[])
+  where (wonPred,getPredRows) =
+          let rows = map getRow [1..4]
+          in  (any id $ map fst rows,
+              listArray (1,4) . map snd $ rows)
+        bs = bounds arr
+        won = wonPred || wonSucs
+        getRow d = let predPos = arr ! cs'
+                       row     = (snd predPos ! d) + 1
+                       cs' = cs (-1) d
+                       cs'notInRange = fst cs' < 1 || snd cs' < 1
+                   in  if   cs'notInRange || fst predPos /= Just stone
+                       then (False, 1)
+                       else (row >= 6,row)
+        cs n d
+          | d == 1    = (x + n, y    )
+          | d == 2    = (x    , y + n)
+          | d == 3    = (x + n, y + n)
+          | otherwise = (x - n, y + n)
+        (wonSucs,fixSucs) = let fixed = map (fix 2 .
+                                        (\d -> (d,map (`cs` d) [1..])))
+                                        [1..4]
+                            in  (any id $ map fst fixed
+                                ,arr' // concatMap snd fixed)
+        arr' = arr // [(coords,(Just stone,getPredRows))]
+        fix :: Int -> (Int, [Coords]) ->
+               (Bool,[(Coords, (Maybe Stone, Array Int Row))])
+        fix n (d, l@(xy:xys))
+          | not $ inRange bs xy       = (False,[])
+          | isNothing $ fst nextPos   = (False,fixNothings 1 l)
+          | fst nextPos /= Just stone = (False,[])
+          | otherwise                 = (n >= 5 || fst nextFix,
+                                        snd nextFix ++
+                                        [(xy,mapSnd (//[(d,n)]) nextPos)])
+          where nextFix = fix (n + 1) (d,xys)
+                nextPos = arr ! xy
+                mapSnd f (p,q) = (p,f q)
+                fixNothings :: Int -> [Coords] ->
+                                [(Coords, (Maybe Stone, Array Int Row))]
+                fixNothings n' (xy':xy's)
+                  | not $ inRange bs xy'  = []
+                  | isJust $ fst nextPosN = []
+                  | otherwise             = nextFixN ++
+                                            [(xy, mapSnd (//[(d,n')])
+                                            nextPosN)]
+                  where nextPosN = arr ! xy'
+                        nextFixN = fixNothings (n' + 1) xy's
+                fixNothings _ _ = []
+        fix _ _ = (False,[])
 -- Geeze, that's kind of a long function. Gonna fix that while refactoring
 -- the code.
+
+--------------------------------------------------------------------------------
+-- DEBUGGING STUFF FOR GHCI; TEMPORARY?
 
 prettyDebug :: Board -> String
 prettyDebug (Board arr) = firstLn ++ concatPieces (fmap (toPiece 1) arr) ++ "|"
@@ -147,3 +152,18 @@ prettyDebug (Board arr) = firstLn ++ concatPieces (fmap (toPiece 1) arr) ++ "|"
                          Nothing            -> "Nothn"
                          Just (Stone Black) -> "Black"
                          Just (Stone White) -> "White"
+
+u :: Board -> IO ()
+u = putStrLn . prettyDebug
+
+m :: Board -> Stone -> Coords -> Board
+m x s c = let (Right (_,b1)) = placeStone x s c in b1
+
+b :: Stone
+b = Stone Black
+
+w :: Stone
+w = Stone Black
+
+b0 :: Board
+b0 = let (Right b_) = empty 7 in b_
