@@ -14,7 +14,18 @@
 --
 --------------------------------------------------------------------------------
 
-module Base where
+module Base
+  ( Board()
+  , Stone
+  , Color
+  , Coords
+  , Row
+  , Size
+  , empty
+  , placeStone
+  , getStone
+  , getRow
+  ) where
 
 import Data.Array
 import Data.Maybe
@@ -61,7 +72,7 @@ empty s = if   s < 6 then Left "The size must be greater than five!"
             . listArray ((1,1),(s,s)) $
             [ [x,y,min x y, min (s - x + 1) y] | x <- [1..s], y <- [1..s] ]
 
--- | 'isOutOfBoundsOf' checks, whether the given Coordinates are valid for
+-- 'isOutOfBoundsOf' checks, whether the given Coordinates are valid for
 -- a given Board
 isOutOfBoundsOf :: Coords -> Board -> Bool
 isOutOfBoundsOf coords (Board arr) = not $ inRange (bounds arr) coords
@@ -80,7 +91,7 @@ placeStone board@(Board arr) stone coords
   | otherwise =
       Right . fixRows coords . replace stone coords $ board
 
--- | 'replace' let's you replace a stone without error handling. (the program
+-- 'replace' let's you replace a stone without error handling. (the program
 -- won't crash. If something is invalid, it will just return the original
 -- 'Board'.) It will also not fix the 'Row's.
 replace :: Stone -> Coords -> Board -> Board
@@ -90,7 +101,7 @@ replace stone coords board@(Board arr) =
   else Board $ arr // [(coords,(Just stone, snd old))]
     where old = arr ! coords
 
--- | 'fixRows' will fix every 'Row' of a given 'Board'.
+-- 'fixRows' will fix every 'Row' of a given 'Board'.
 fixRows :: Coords -> Board -> (Bool, Board)
 fixRows coords board =
   (any fst $ concat fixes, foldr1 (.) (map (flip (//>) . map snd) fixes) board)
@@ -103,7 +114,7 @@ fixRows coords board =
         prevStoneIn dir = getStone board $ goTo coords dir 1
         prevRowsIn dir  = getRow board (goTo coords dir 1) dir
 
--- | 'fix' fixes a single continuous 'Row'. It is basically a helper
+-- 'fix' fixes a single continuous 'Row'. It is basically a helper
 -- function for 'fixRows'.
 fix :: Board -> Coords -> (Direction, Maybe Stone, Row) ->
   [(Bool, (Coords, Direction, Row))]
@@ -121,7 +132,7 @@ fix board coords (dir, prevStone, prevRow)
         thisStone = getStone board coords
         newCoords = goTo coords dir (-1)
 
--- | 'goTo' will give you coordinates for going a certain number of
+-- 'goTo' will give you coordinates for going a certain number of
 -- intersections in a certain direction from the initial coordinates.
 goTo :: Coords -> Direction -> Int -> Coords
 goTo (x,y) dir amount = case dir of
@@ -130,7 +141,7 @@ goTo (x,y) dir amount = case dir of
   NorthWest -> (x - amount, y - amount)
   NorthEast -> (x + amount, y - amount)
 
--- | '//>' is a variation of 'Data.Array.//' for specific usage with 'Row's.
+-- '//>' is a variation of 'Data.Array.//' for specific usage with 'Row's.
 (//>) :: Board -> [(Coords, Direction, Row)] -> Board
 (//>) (Board arr) news = Board $ arr // map rephrase news
   where rephrase (coords,dir,row) =
