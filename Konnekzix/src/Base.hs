@@ -1,8 +1,9 @@
 {-# LANGUAGE TupleSections #-}
+
 --------------------------------------------------------------------------------
 -- |
 -- Module      :  Konnekzix.Base
--- Copyright   :  (c) Jake Brünker, 2013
+-- Copyright   :  (c) Jakob Brünker, 2013
 -- License     :  BSD3
 --
 -- Maintainer  :  jake.bruenker@gmail.com
@@ -24,22 +25,21 @@ import Data.Maybe
 -- the stone is part of a row of multiple stones, horizontally, vertically,
 -- or diagonally. To construct a board, use 'empty'.
 newtype Board = Board (Array Coords (Maybe Stone, Array Direction Row))
-              deriving Show
 
 -- | On each intersection of a board, there may be a Stone.
-newtype Stone = Stone Color deriving (Show, Eq)
+newtype Stone = Stone Color deriving Eq
 
 -- | The directions of the 'Row's
 data Direction = West
                | North
                | NorthWest
                | NorthEast
-               deriving (Eq, Ord, Enum, Ix, Show)
+               deriving (Eq, Ord, Enum, Ix)
 
 -- | Each player and their stones have a 'Color'.
 data Color = Black
            | White
-           deriving (Show, Eq)
+           deriving Eq
 
 -- | 'Coords' are used to access intersections on a board.
 type Coords = (Int,Int)
@@ -145,38 +145,3 @@ getRow (Board arr) coords dir = snd (arr ! coords) ! dir
 -- Nothing, respectively.
 getStone :: Board -> Coords -> Maybe Stone
 getStone (Board arr) coords = fst (arr ! coords)
-
---------------------------------------------------------------------------------
--- debugging stuff for ghci; temporary?
-
-prettyDebug :: Board -> String -- Will only work correctly for boards up to 9x9
-prettyDebug (Board arr) = firstLn ++ '\n' : concatMap prettyRow [1..maxX]
-  where
-    (_,(maxX,_)) = bounds arr
-    prettyRow y  = let fs = map line ([1..3] :: [Int])
-                   in  concat [ concatMap (`f` y) [1..maxX] ++ "|\n" | f <- fs ]
-    line n x y
-      | n == 1    = '|' : showStone (fst intersection)
-      | n == 2    = concat ["|",row NorthWest," ",row North," ",row NorthEast]
-      | n == 3    = '|' : row West ++ "____"
-      | otherwise = "|Error"
-      where intersection = arr ! (x,y)
-            row m        = show $ snd intersection ! m
-    firstLn      = concat (replicate maxX " _____")
-    showStone (Just (Stone col)) = show col
-    showStone _                  = "Nothn"
-
-u :: Board -> IO ()
-u = putStrLn . prettyDebug
-
-p :: Board -> Stone -> Coords -> Board
-p x s c = let (Right (_,b1)) = placeStone x s c in b1
-
-b :: Stone
-b = Stone Black
-
-w :: Stone
-w = Stone White
-
-b0 :: Board
-b0 = let (Right b') = empty 7 in b'
