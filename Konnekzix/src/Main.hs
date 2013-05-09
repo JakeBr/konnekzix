@@ -26,6 +26,12 @@ main = do
   initGUI
   window <- windowNew
   on window deleteEvent $ liftIO mainQuit >> return False
+  set window
+    [ windowTitle := "Konnekzix"
+    , windowWindowPosition := WinPosCenter
+    ]
+  windowSetDefaultIconFromFile "stones.ico"
+  windowMaximize window
   widgetShowAll window
   name <- getName
   putStrLn name -- temporary
@@ -66,13 +72,14 @@ askForName username fileIsValid = do
     [ windowResizable       := False
     , windowModal           := True
     , windowSkipTaskbarHint := True
+    , windowTitle           := "Your name?"
     ]
   dialogAddButton nameDialog "OK" ResponseOk
   nameDialogUpper <- dialogGetUpper nameDialog
   nameDialogLabel <- labelNew $ Just "Please enter your name:"
-  boxPackStartDefaults nameDialogUpper nameDialogLabel
   nameDialogEntry <- entryNew
   set nameDialogEntry [ entryText := username ]
+  boxPackStartDefaults nameDialogUpper nameDialogLabel
   boxPackStartDefaults nameDialogUpper nameDialogEntry
   widgetShowAll nameDialogUpper
   result <- dialogRun nameDialog
@@ -81,9 +88,9 @@ askForName username fileIsValid = do
     answer <- entryGetText nameDialogEntry
     widgetDestroy nameDialog
     if   answer == ""
-    then return "guest"
+    then return "Guest"
     else writeNameToFile answer username fileIsValid
-  else widgetDestroy nameDialog >> return "guest"
+  else widgetDestroy nameDialog >> return "Guest"
 
 -- 'searchForName' searches for a name in a string in the format
 -- {<username>:<name>\n}
