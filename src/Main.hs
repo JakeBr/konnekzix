@@ -14,7 +14,7 @@
 --------------------------------------------------------------------------------
 
 import Control.Monad.Trans(liftIO)
-import Data.Maybe(fromMaybe)
+import Data.Maybe(fromMaybe, fromJust)
 import Graphics.UI.Gtk
 import System.Directory(doesFileExist)
 import System.Environment(getEnvironment)
@@ -24,6 +24,7 @@ import System.IO(openFile, hGetContents, hPutStrLn, IOMode(..))
 main :: IO ()
 main = do
   initGUI
+
   window <- windowNew
   on window deleteEvent $ liftIO mainQuit >> return False
   set window
@@ -32,9 +33,50 @@ main = do
     ]
   windowSetDefaultIconFromFile "stones.ico"
   windowMaximize window
+
+  menu <- vBoxNew False 0
+  containerAdd window menu
+
+  gameMenuAction <- actionNew "GMA" "Game"        Nothing Nothing
+  prefMenuAction <- actionNew "PMA" "Preferences" Nothing Nothing
+  helpMenuAction <- actionNew "HMA" "Help"        Nothing Nothing
+
+  newGameAction <- actionNew "NEWA" "New..." Nothing Nothing
+  nameAction <- actionNew "NAMA" "Change Name..." Nothing Nothing
+  colorAction <- actionNew "COLA" "Choose Colors..." 
+    Nothing $ Just "stockColorPicker"
+  aboutAction <- actionNew "ABTA" "About" Nothing Nothing
+
+  agr <- actionGroupNew "AGR"
+  mapM_ (actionGroupAddAction agr)
+    [ gameMenuAction
+    , prefMenuAction
+    , helpMenuAction
+    ]
+  mapM_ (actionGroupAddAction agr)
+    [ newGameAction
+    , nameAction
+    , colorAction
+    , aboutAction
+    ]
+
+  ui <- uiManagerNew
+  uiManagerAddUiFromString ui uiDecl
+  uiManagerInsertActionGroup ui agr 0
+
+  menubar <- fmap fromJust $ uiManagerGetWidget ui "/ui/menubar"
+  boxPackStart menu menubar PackNatural 0
+
+  on newGameAction actionActivated $ putStrLn "New Game!"
+  on nameAction    actionActivated $ putStrLn "Change Name!"
+  on colorAction   actionActivated $ putStrLn "Pick Colors!"
+  on aboutAction   actionActivated $ putStrLn "ABOUT!"
+
   widgetShowAll window
+
   name <- getName
   putStrLn name -- temporary
+
   mainGUI
 
 -- 'extractUserName' takes the whole Environment and returns a username.
@@ -67,30 +109,30 @@ getName = do
 -- 'askForName' opens the dialog in the user can enter their name.
 askForName :: String -> Bool -> IO String
 askForName username fileIsValid = do
-  nameDialog <- dialogNew
-  set nameDialog
+  dialog <- dialogNew
+  set dialog
     [ windowResizable       := False
     , windowModal           := True
     , windowSkipTaskbarHint := True
     , windowTitle           := "Your name?"
     ]
-  dialogAddButton nameDialog "OK" ResponseOk
-  nameDialogUpper <- dialogGetUpper nameDialog
-  nameDialogLabel <- labelNew $ Just "Please enter your name:"
-  nameDialogEntry <- entryNew
-  set nameDialogEntry [ entryText := username ]
-  boxPackStartDefaults nameDialogUpper nameDialogLabel
-  boxPackStartDefaults nameDialogUpper nameDialogEntry
-  widgetShowAll nameDialogUpper
-  result <- dialogRun nameDialog
+  dialogAddButton dialog "OK" ResponseOk
+  dialogUpper <- dialogGetUpper dialog
+  dialogLabel <- labelNew $ Just "Please enter your name:"
+  dialogEntry <- entryNew
+  set dialogEntry [ entryText := username ]
+  boxPackStartDefaults dialogUpper dialogLabel
+  boxPackStartDefaults dialogUpper dialogEntry
+  widgetShowAll dialogUpper
+  result <- dialogRun dialog
   if result == ResponseOk
   then do
-    answer <- entryGetText nameDialogEntry
-    widgetDestroy nameDialog
+    answer <- entryGetText dialogEntry
+    widgetDestroy dialog
     if   answer == ""
     then return "Guest"
     else writeNameToFile answer username fileIsValid
-  else widgetDestroy nameDialog >> return "Guest"
+  else widgetDestroy dialog >> return "Guest"
 
 -- 'searchForName' searches for a name in a string in the format
 -- {<username>:<name>\n}
@@ -109,3 +151,21 @@ isValid = all correct . lines
 parse :: String -> [(String,String)]
 parse = map parseLn . lines
   where parseLn = fmap tail . span (/= ':')
+
+-- 'uiDecl' is the declaration for the menubar
+uiDecl :: String
+uiDecl =
+  "<ui>\
+  \  <menubar>\
+  \    <menu action=\"GMA\">\
+  \      <menuitem action=\"NEWA\" />\
+  \    </menu>\
+  \    <menu action=\"PMA\">\
+  \      <menuitem action=\"NAMA\" />\
+  \      <menuitem action=\"COLA\" />\
+  \    </menu>\
+  \    <menu action=\"HMA\">\
+  \      <menuitem action=\"ABTA\" />\
+  \    </menu>\
+  \  </menubar>\
+  \</ui>"
