@@ -82,7 +82,8 @@ isOutOfBoundsOf coords (Board arr) = not $ inRange (bounds arr) coords
 -- addition. But beware, if you try to place a stone on top of another one
 -- or even outside of the board, it will give you a String. It will also
 -- update the 'Row's.
-placeStone :: Board -> Stone -> Coords -> Either String (Bool, Board)
+placeStone :: Board -> Stone -> Coords ->
+  Either String ([(Coords, Direction, Row)], Board)
 placeStone board@(Board arr) stone coords
   |  coords `isOutOfBoundsOf` board =
       Left "Coordinates are out of Bounds!"
@@ -102,9 +103,9 @@ replace stone coords board@(Board arr) =
     where old = arr ! coords
 
 -- 'fixRows' will fix every 'Row' of a given 'Board'.
-fixRows :: Coords -> Board -> (Bool, Board)
+fixRows :: Coords -> Board -> ([(Coords, Direction, Row)], Board)
 fixRows coords board =
-  (any fst $ concat fixes, foldr1 (.) (map (flip (//>) . map snd) fixes) board)
+  (concatMap maximumRows fixes, foldr1 (.) (map (flip (//>)) fixes) board)
   where fixes = map (fix board coords ) $
           zip3
             dirs
@@ -117,20 +118,29 @@ fixRows coords board =
 -- 'fix' fixes a single continuous 'Row'. It is basically a helper
 -- function for 'fixRows'.
 fix :: Board -> Coords -> (Direction, Maybe Stone, Row) ->
-  [(Bool, (Coords, Direction, Row))]
+  [(Coords, Direction, Row)]
 fix board coords (dir, prevStone, prevRow)
   | coords `isOutOfBoundsOf` board = []
   | isFine                         = []
   | prevStone /= thisStone         =
-      (False, (coords, dir, 1)) : fix board newCoords (dir, thisStone, 1)
+      (coords, dir, 1) : fix board newCoords (dir, thisStone, 1)
   | otherwise                      =
-      (prevRow >= 5 && isJust thisStone, (coords, dir, prevRow + 1)) :
+      (coords, dir, prevRow + 1) :
         fix board newCoords (dir, thisStone, prevRow + 1)
   where isFine = (prevStone == thisStone && prevRow == thisRow - 1) ||
                  (prevStone /= thisStone && thisRow == 1)
         thisRow   = getRow   board coords dir
         thisStone = getStone board coords
         newCoords = goTo coords dir (-1)
+
+-- 'maximumRows' returns only the highest 'Row' value out of each continuous
+-- Row.
+maximumRows :: [(Coords, Direction, Row)] -> [(Coords, Direction, Row)]
+maximumRows []                              = []
+maximumRows [row]                           = [row]
+maximumRows (row@(_,_,i):rest@((_,_,i'):_)) = if   i' > i
+                                              then maximumRows rest
+                                              else row : maximumRows rest
 
 -- 'goTo' will give you coordinates for going a certain number of
 -- intersections in a certain direction from the initial coordinates.
