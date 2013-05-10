@@ -45,7 +45,7 @@ main = do
   nameAction <- actionNew "NAMA" "Change Name..." Nothing Nothing
   colorAction <- actionNew "COLA" "Choose Colors..." 
     Nothing $ Just "stockColorPicker"
-  aboutAction <- actionNew "ABTA" "About" Nothing Nothing
+  aboutAction <- actionNew "ABTA" "About" Nothing $ Just "stockAbout"
 
   agr <- actionGroupNew "AGR"
   mapM_ (actionGroupAddAction agr)
