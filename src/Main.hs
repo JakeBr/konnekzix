@@ -14,6 +14,7 @@
 --------------------------------------------------------------------------------
 
 import Control.Monad.Trans(liftIO)
+import Data.IORef(newIORef,readIORef,writeIORef,IORef())
 import Data.Maybe(fromMaybe, fromJust)
 import Graphics.UI.Gtk
 import System.Directory(doesFileExist)
@@ -23,6 +24,8 @@ import System.IO(openFile, hGetContents, hPutStrLn, IOMode(..))
 -- | the 'main' function starts up the GUI and everything else.
 main :: IO ()
 main = do
+  nameIO <- newIORef ""
+
   initGUI
 
   window <- windowNew
@@ -43,7 +46,7 @@ main = do
 
   newGameAction <- actionNew "NEWA" "New..." Nothing Nothing
   nameAction <- actionNew "NAMA" "Change Name..." Nothing Nothing
-  colorAction <- actionNew "COLA" "Choose Colors..." 
+  colorAction <- actionNew "COLA" "Choose Colors..."
     Nothing $ Just "stockColorPicker"
   aboutAction <- actionNew "ABTA" "About" Nothing $ Just "stockAbout"
 
@@ -68,13 +71,14 @@ main = do
   boxPackStart menu menubar PackNatural 0
 
   on newGameAction actionActivated $ putStrLn "New Game!"
-  on nameAction    actionActivated $ putStrLn "Change Name!"
+  on nameAction    actionActivated $ newName nameIO
   on colorAction   actionActivated $ putStrLn "Pick Colors!"
   on aboutAction   actionActivated $ putStrLn "ABOUT!"
 
   widgetShowAll window
 
   name <- getName
+  writeIORef nameIO name
   putStrLn name -- temporary
 
   mainGUI
@@ -140,6 +144,13 @@ searchForName :: String -> String -> Maybe String
 searchForName username xs
   | isValid xs = lookup username $ parse xs
   | otherwise  = Nothing
+
+newName :: IORef String -> IO ()
+newName nameIO = do
+  prevName <- readIORef nameIO
+  name <- askForName prevName False
+  writeIORef nameIO name
+
 
 -- 'isValid' checks, whether a String can be parsed to an association list
 isValid :: String -> Bool
