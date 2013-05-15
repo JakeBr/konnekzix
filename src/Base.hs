@@ -67,10 +67,11 @@ type Size = Int
 -- | The 'empty' function lets you construct a 'Board'. You need to give it
 -- size which is greater than five.
 empty :: Size -> Either String Board
-empty s = if   s < 6 then Left "The size must be greater than five!"
-          else Right . Board . fmap ((Nothing,) . listArray (West,NorthEast))
-            . listArray ((1,1),(s,s)) $
-            [ [x,y,min x y, min (s - x + 1) y] | x <- [1..s], y <- [1..s] ]
+empty s = if s < 6
+            then Left "The size must be greater than five!"
+            else Right . Board . fmap ((Nothing,) . listArray (West,NorthEast))
+              . listArray ((1,1),(s,s)) $
+              [ [x,y,min x y, min (s - x + 1) y] | x <- [1..s], y <- [1..s] ]
 
 -- 'isOutOfBoundsOf' checks, whether the given Coordinates are valid for
 -- a given Board
@@ -97,10 +98,10 @@ placeStone board@(Board arr) stone coords
 -- 'Board'.) It will also not fix the 'Row's.
 replace :: Stone -> Coords -> Board -> Board
 replace stone coords board@(Board arr) =
-  if   coords `isOutOfBoundsOf` board
-  then board
-  else Board $ arr // [(coords,(Just stone, snd old))]
-    where old = arr ! coords
+  if coords `isOutOfBoundsOf` board
+    then board
+    else Board $ arr // [(coords,(Just stone, snd old))]
+      where old = arr ! coords
 
 -- 'fixRows' will fix every 'Row' of a given 'Board'.
 fixRows :: Coords -> Board -> ([(Coords, Direction, Row)], Board)
@@ -138,9 +139,9 @@ fix board coords (dir, prevStone, prevRow)
 maximumRows :: [(Coords, Direction, Row)] -> [(Coords, Direction, Row)]
 maximumRows []                              = []
 maximumRows [row]                           = [row]
-maximumRows (row@(_,_,i):rest@((_,_,i'):_)) = if   i' > i
-                                              then maximumRows rest
-                                              else row : maximumRows rest
+maximumRows (row@(_,_,i):rest@((_,_,i'):_)) = if i' > i
+                                                then maximumRows rest
+                                                else row : maximumRows rest
 
 -- 'goTo' will give you coordinates for going a certain number of
 -- intersections in a certain direction from the initial coordinates.
