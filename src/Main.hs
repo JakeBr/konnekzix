@@ -22,13 +22,20 @@ import System.Directory(doesFileExist)
 import System.Environment(getEnvironment)
 import System.IO(openFile, hGetContents, hPutStrLn, IOMode(..), hClose)
 
+-- some type I need for coloring
+data ColoredThing = Foreground
+                  | Background
+                  | PieceWhite
+                  | PieceBlack
+                  deriving Show
+
 -- | the 'main' function starts up the GUI and everything else.
 main :: IO ()
 main = do
-  foreColor    <- getColor "Foreground"
-  backColor    <- getColor "Background"
-  blackColor   <- getColor "PieceBlack"
-  whiteColor   <- getColor "PieceWhite"
+  foreColor    <- getColor Foreground
+  backColor    <- getColor Background
+  blackColor   <- getColor PieceBlack
+  whiteColor   <- getColor PieceWhite
   foreColorIO  <- newIORef $ fromJust foreColor
   backColorIO  <- newIORef $ fromJust backColor
   blackColorIO <- newIORef $ fromJust blackColor
@@ -184,9 +191,9 @@ parseNames :: String -> [(String,String)]
 parseNames = map parseNamesLn . lines
   where parseNamesLn = fmap tail . span (/= ':')
 
-getColor :: String -> IO (Maybe Color)
+getColor :: ColoredThing -> IO (Maybe Color)
 getColor usage = do
-  let path = "col" ++ usage
+  let path = "col" ++ show usage
   let defaultColor = defaultColorFor usage
   colorSpecified <- doesFileExist path
   if colorSpecified
@@ -202,15 +209,14 @@ getColor usage = do
       return defaultColor
 
 -- 'defaultColorFor' returns the default color for a given purpose
-defaultColorFor :: String -> Maybe Color
+defaultColorFor :: ColoredThing -> Maybe Color
 defaultColorFor usage = case usage of
-                          "Foreground" -> Just $ Color  5000  5000  5000
-                          "Background" -> Just $ Color 56831 45568 23551
-                          "PieceBlack" -> Just $ Color     0     0     0
-                          "PieceWhite" -> Just $ Color 65535 65535 65535
-                          _            -> Nothing
+                          Foreground -> Just $ Color  5000  5000  5000
+                          Background -> Just $ Color 56831 45568 23551
+                          PieceBlack -> Just $ Color     0     0     0
+                          PieceWhite -> Just $ Color 65535 65535 65535
 
--- 'parseColor' takes a String of format "\"["a","b","c"]\"" and returns
+-- 'parseColor' takes a String of format "["a","b","c"]" and returns
 -- Just the Color, if the String is valid. Otherwise, it returns nothing.
 parseColor :: String -> Maybe Color
 parseColor s = case reads s of
@@ -229,10 +235,10 @@ pickColors = do
     ]
   dialogAddButton dialog "OK" ResponseOk
   dialogUpper <- dialogGetUpper dialog
-  (sAreaFG, sButtonFG) <- createColorSelectionArea "Foreground"
-  (sAreaBG, sButtonBG) <- createColorSelectionArea "Background"
-  (sAreaPB, sButtonPB) <- createColorSelectionArea "PieceBlack"
-  (sAreaPW, sButtonPW) <- createColorSelectionArea "PieceWhite"
+  (sAreaFG, sButtonFG) <- createColorSelectionArea Foreground
+  (sAreaBG, sButtonBG) <- createColorSelectionArea Background
+  (sAreaPB, sButtonPB) <- createColorSelectionArea PieceBlack
+  (sAreaPW, sButtonPW) <- createColorSelectionArea PieceWhite
   mapM_ (boxPackStartDefaults dialogUpper)
     [ sAreaFG
     , sAreaBG
@@ -261,10 +267,15 @@ pickColors = do
     else widgetDestroy dialog >> return []
 
 -- helper function for color selection
-createColorSelectionArea :: String -> IO (HBox, ColorButton)
+createColorSelectionArea :: ColoredThing -> IO (HBox, ColorButton)
 createColorSelectionArea usage = do
   hBox <- hBoxNew True 0
-  label <- labelNew $ Just $ usage ++ ":"
+  label <- labelNew $ Just $
+    case usage of
+      PieceWhite -> "White Piece"
+      PieceBlack -> "Black Piece"
+      _          -> show usage
+    ++ ":"
   maybeColor <- getColor usage
   let color = fromJust $ if isNothing maybeColor
                            then defaultColorFor usage
