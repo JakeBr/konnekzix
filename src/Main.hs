@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 --------------------------------------------------------------------------------
 -- |
 -- Module      : Main
@@ -16,8 +17,9 @@
 import Control.Monad(forM_)
 import Control.Monad.Trans(liftIO)
 import Data.IORef(newIORef,readIORef,writeIORef,IORef())
-import Data.Maybe(fromMaybe, fromJust, isNothing)
+import Data.Maybe(fromMaybe, fromJust)
 import Graphics.UI.Gtk
+import Graphics.UI.Gtk.Gdk.GC
 import System.Directory(doesFileExist)
 import System.Environment(getEnvironment)
 import System.IO(openFile, hGetContents, hPutStrLn, IOMode(..), hClose)
@@ -36,25 +38,41 @@ main = do
   backColor    <- getColor Background
   blackColor   <- getColor PieceBlack
   whiteColor   <- getColor PieceWhite
-  foreColorIO  <- newIORef $ fromJust foreColor
-  backColorIO  <- newIORef $ fromJust backColor
-  blackColorIO <- newIORef $ fromJust blackColor
-  whiteColorIO <- newIORef $ fromJust whiteColor
+  foreColorIO  <- newIORef foreColor
+  backColorIO  <- newIORef backColor
+  blackColorIO <- newIORef blackColor
+  whiteColorIO <- newIORef whiteColor
   nameIO       <- newIORef ""
 
   initGUI
 
   window <- windowNew
-  on window deleteEvent $ liftIO mainQuit >> return False
-  set window
-    [ windowTitle := "Konnekzix"
-    , windowWindowPosition := WinPosCenter
-    ]
+  window `on` deleteEvent $ liftIO mainQuit >> return False
   windowSetDefaultIconFromFile "stones.ico"
-  windowMaximize window
+  set window
+    [ windowTitle          := "Konnekzix"
+    , windowWindowPosition := WinPosCenter
+    , windowDefaultWidth   := 1920
+    , windowDefaultHeight  := 1080
+    ]
 
   menu <- vBoxNew False 0
   containerAdd window menu
+
+  contents <- hBoxNew False 0
+  board <- drawingAreaNew
+  deleteMe <- labelNew $ Just "Foo" -- TODO: Change to Menu
+  deleteMe2 <- labelNew $ Just "Bar" -- TODO: Change to Chat
+
+  board `on` sizeRequest $ return $ Requisition 1000 1000
+  board `on` exposeEvent $ liftIO
+    (drawBoard board foreColorIO backColorIO blackColorIO whiteColorIO) >>
+    return False
+
+  boxPackStartDefaults menu contents
+  boxPackStartDefaults contents board
+  boxPackStartDefaults contents deleteMe
+  boxPackStartDefaults contents deleteMe2
 
   gameMenuAction <- actionNew "GMA" "Game"        Nothing Nothing
   prefMenuAction <- actionNew "PMA" "Preferences" Nothing Nothing
@@ -86,9 +104,9 @@ main = do
   menubar <- fmap fromJust $ uiManagerGetWidget ui "/ui/menubar"
   boxPackStart menu menubar PackNatural 0
 
-  on newGameAction actionActivated $ putStrLn "New Game!"
-  on nameAction    actionActivated $ newName nameIO
-  on colorAction   actionActivated $ do
+  newGameAction `on` actionActivated $ putStrLn "New Game!"
+  nameAction    `on` actionActivated $ newName nameIO
+  colorAction   `on` actionActivated $ do
     newColors <- pickColors
     forM_ newColors (\(usage, color) ->
                       case usage of
@@ -97,15 +115,43 @@ main = do
                         "PieceBlack" -> writeIORef blackColorIO color
                         "PieceWhite" -> writeIORef whiteColorIO color
                         _            -> return ())
-  on aboutAction   actionActivated $ putStrLn "ABOUT!"
+  aboutAction `on` actionActivated $ putStrLn "ABOUT!" -- TODO: About action.
+                                                       -- Just a dialog.
 
   widgetShowAll window
 
   name <- getName
   writeIORef nameIO name
+
   putStrLn name -- temporary
 
   mainGUI
+
+-- 'drawBoard' draws the Board.
+-- TODO: recall function when colors are changed
+drawBoard :: DrawingArea ->
+  IORef Color -> IORef Color -> IORef Color -> IORef Color -> IO ()
+drawBoard da foIO baIO blIO whIO = do
+  d <- widgetGetDrawWindow da
+  foreColor <- readIORef foIO
+  backColor <- readIORef baIO
+  blackColor <- readIORef blIO
+  whiteColor <- readIORef whIO
+  gc <- gcNewWithValues d $ newGCValues { foreground = backColor }
+  drawRectangle d gc True 10 10 980 980
+  gcSetValues gc $ newGCValues { foreground = foreColor, lineWidth = 2 }
+  drawBoardLines d gc
+  -- TODO: Stones
+
+drawBoardLines :: DrawWindow -> GC -> IO ()
+drawBoardLines d gc = do
+  drawSegments d gc
+    [ ((x,41),(x,959)) | x <- [41,92..959] ]
+  drawSegments d gc
+    [ ((41,y),(959,y)) | y <- [41,92..959] ]
+  mapM_ (drawCircle 6) $ let ps = [194,500,806] in [ (x,y) | x <- ps, y <- ps ]
+  where drawCircle r (x,y) =
+          drawArc d gc True (x-r) (y-r) (2*r) (2*r) 0 (360*64)
 
 -- 'extractUserName' takes the whole Environment and returns a username.
 extractUserName :: [(String,String)] -> String
@@ -128,7 +174,7 @@ getName = do
   username <- fmap extractUserName getEnvironment
   namesExist <- doesFileExist "names"
   if namesExist
-    then do 
+    then do
       hNames <- openFile "names" ReadMode
       names <- hGetContents hNames
       let name = searchForName username names
@@ -191,7 +237,7 @@ parseNames :: String -> [(String,String)]
 parseNames = map parseNamesLn . lines
   where parseNamesLn = fmap tail . span (/= ':')
 
-getColor :: ColoredThing -> IO (Maybe Color)
+getColor :: ColoredThing -> IO Color
 getColor usage = do
   let path = "col" ++ show usage
   let defaultColor = defaultColorFor usage
@@ -202,19 +248,17 @@ getColor usage = do
       color <- hGetContents file
       let answer = parseColor $ init color
       let closeAndReturn x = x `seq` hClose file >> return x
-      closeAndReturn $ if isNothing answer
-                              then defaultColor
-                              else answer
+      closeAndReturn $ fromMaybe defaultColor answer
     else
       return defaultColor
 
 -- 'defaultColorFor' returns the default color for a given purpose
-defaultColorFor :: ColoredThing -> Maybe Color
+defaultColorFor :: ColoredThing -> Color
 defaultColorFor usage = case usage of
-                          Foreground -> Just $ Color  5000  5000  5000
-                          Background -> Just $ Color 56831 45568 23551
-                          PieceBlack -> Just $ Color     0     0     0
-                          PieceWhite -> Just $ Color 65535 65535 65535
+                          Foreground -> Color  5000  5000  5000
+                          Background -> Color 56831 45568 23551
+                          PieceBlack -> Color     0     0     0
+                          PieceWhite -> Color 65535 65535 65535
 
 -- 'parseColor' takes a String of format "["a","b","c"]" and returns
 -- Just the Color, if the String is valid. Otherwise, it returns nothing.
@@ -276,10 +320,7 @@ createColorSelectionArea usage = do
       PieceBlack -> "Black Piece"
       _          -> show usage
     ++ ":"
-  maybeColor <- getColor usage
-  let color = fromJust $ if isNothing maybeColor
-                           then defaultColorFor usage
-                           else maybeColor
+  color <- getColor usage
   button <- colorButtonNewWithColor color
   boxPackStartDefaults hBox label
   boxPackStartDefaults hBox button
