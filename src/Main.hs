@@ -9,20 +9,23 @@
 -- Stability   : experimental
 -- Portability : portable
 --
--- This module contains the main function, including GUI. 
+-- This module contains the main function, including GUI.
 -- Compiling will result in an executable file.
 --
 --------------------------------------------------------------------------------
 
-import Control.Monad(forM_)
+import Control.Monad(forM_, when)
 import Control.Monad.Trans(liftIO)
+import Data.Either(rights)
 import Data.IORef(newIORef,readIORef,writeIORef,IORef())
-import Data.Maybe(fromMaybe, fromJust)
+import Data.Maybe(fromMaybe, fromJust, isJust)
 import Graphics.UI.Gtk
 import Graphics.UI.Gtk.Gdk.GC
 import System.Directory(doesFileExist)
 import System.Environment(getEnvironment)
 import System.IO(openFile, hGetContents, hPutStrLn, IOMode(..), hClose)
+import Base hiding (Color, getColor)
+import qualified Base(getColor)
 
 -- some type I need for coloring
 data ColoredThing = Foreground
@@ -44,33 +47,34 @@ main = do
   whiteColorIO <- newIORef whiteColor
   nameIO       <- newIORef ""
 
+  boardIO      <- newIORef $ head . rights . return . empty $ 19
+
   initGUI
 
   window <- windowNew
   window `on` deleteEvent $ liftIO mainQuit >> return False
   windowSetDefaultIconFromFile "stones.ico"
+  windowMaximize window
   set window
     [ windowTitle          := "Konnekzix"
     , windowWindowPosition := WinPosCenter
-    , windowDefaultWidth   := 1920
-    , windowDefaultHeight  := 1080
     ]
 
   menu <- vBoxNew False 0
   containerAdd window menu
 
   contents <- hBoxNew False 0
-  board <- drawingAreaNew
+  boardDA <- drawingAreaNew
   deleteMe <- labelNew $ Just "Foo" -- TODO: Change to Menu
   deleteMe2 <- labelNew $ Just "Bar" -- TODO: Change to Chat
 
-  board `on` sizeRequest $ return $ Requisition 1000 1000
-  board `on` exposeEvent $ liftIO
-    (drawBoard board foreColorIO backColorIO blackColorIO whiteColorIO) >>
-    return False
+  boardDA `on` sizeRequest $ return $ Requisition 1000 1000
+  boardDA `on` exposeEvent $ liftIO
+    (drawboard boardDA boardIO
+      foreColorIO backColorIO blackColorIO whiteColorIO) >> return False
 
   boxPackStartDefaults menu contents
-  boxPackStartDefaults contents board
+  boxPackStartDefaults contents boardDA
   boxPackStartDefaults contents deleteMe
   boxPackStartDefaults contents deleteMe2
 
@@ -123,35 +127,50 @@ main = do
   name <- getName
   writeIORef nameIO name
 
-  putStrLn name -- temporary
-
   mainGUI
 
--- 'drawBoard' draws the Board.
+-- 'drawboard' draws the board.
 -- TODO: recall function when colors are changed
-drawBoard :: DrawingArea ->
+drawboard :: DrawingArea -> IORef Board ->
   IORef Color -> IORef Color -> IORef Color -> IORef Color -> IO ()
-drawBoard da foIO baIO blIO whIO = do
+drawboard da bIO foIO baIO blIO whIO = do
   d <- widgetGetDrawWindow da
   foreColor <- readIORef foIO
   backColor <- readIORef baIO
   blackColor <- readIORef blIO
   whiteColor <- readIORef whIO
+  board <- readIORef bIO
+  -- Draw Background
   gc <- gcNewWithValues d $ newGCValues { foreground = backColor }
   drawRectangle d gc True 10 10 980 980
+  -- Draw Lines
   gcSetValues gc $ newGCValues { foreground = foreColor, lineWidth = 2 }
-  drawBoardLines d gc
-  -- TODO: Stones
+  drawboardDALines d gc
+  -- Draw Stones
+  mapM_ (drawStone d gc (blackColor, whiteColor) board)
+    [ (x,y) | x <- [1..19], y <- [1..19] ]
 
-drawBoardLines :: DrawWindow -> GC -> IO ()
-drawBoardLines d gc = do
+drawStone :: DrawableClass d => d -> GC -> (Color, Color) ->
+  Board -> (Int,Int) -> IO ()
+drawStone d gc (blCol, whCol) b ps@(x,y) = let st = getStone b ps in
+  when (isJust st) $ do
+    let gcColor = if (Base.getColor . fromJust) st == Black
+                    then blCol
+                    else whCol
+    gcSetValues gc $ newGCValues { foreground = gcColor }
+    drawCircle d gc 25 (x*51-10,y*51-10)
+
+drawboardDALines :: DrawWindow -> GC -> IO ()
+drawboardDALines d gc = do
   drawSegments d gc
     [ ((x,41),(x,959)) | x <- [41,92..959] ]
   drawSegments d gc
     [ ((41,y),(959,y)) | y <- [41,92..959] ]
-  mapM_ (drawCircle 6) $ let ps = [194,500,806] in [ (x,y) | x <- ps, y <- ps ]
-  where drawCircle r (x,y) =
-          drawArc d gc True (x-r) (y-r) (2*r) (2*r) 0 (360*64)
+  mapM_ (drawCircle d gc 6) $
+    let ps = [194,500,806] in [ (x,y) | x <- ps, y <- ps ]
+
+drawCircle :: DrawableClass d => d -> GC -> Int -> (Int, Int) -> IO ()
+drawCircle d gc r (x,y) = drawArc d gc True (x-r) (y-r) (2*r) (2*r) 0 (360*64)
 
 -- 'extractUserName' takes the whole Environment and returns a username.
 extractUserName :: [(String,String)] -> String
