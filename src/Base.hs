@@ -16,14 +16,15 @@
 
 module Base
   ( Board()
-  , Stone
-  , Color
+  , Stone(..)
+  , Color(..)
   , Coords
   , Row
   , Size
   , empty
   , placeStone
   , getStone
+  , getColor
   , getRow
   ) where
 
@@ -35,22 +36,22 @@ import Data.Maybe
 -- Each element may contain a stone and contains some information to see if
 -- the stone is part of a row of multiple stones, horizontally, vertically,
 -- or diagonally. To construct a board, use 'empty'.
-newtype Board = Board (Array Coords (Maybe Stone, Array Direction Row))
+newtype Board = Board (Array Coords (Maybe Stone, Array Direction Row)) deriving (Eq)
 
 -- | On each intersection of a board, there may be a Stone.
-newtype Stone = Stone Color deriving Eq
+newtype Stone = Stone Color deriving (Eq, Show)
 
 -- | The directions of the 'Row's
 data Direction = West
                | North
                | NorthWest
                | NorthEast
-               deriving (Eq, Ord, Enum, Ix)
+               deriving (Eq, Ord, Enum, Ix, Show)
 
 -- | Each player and their stones have a 'Color'.
 data Color = Black
            | White
-           deriving Eq
+           deriving (Eq, Show)
 
 -- | 'Coords' are used to access intersections on a board.
 type Coords = (Int,Int)
@@ -107,14 +108,14 @@ replace stone coords board@(Board arr) =
 fixRows :: Coords -> Board -> ([(Coords, Direction, Row)], Board)
 fixRows coords board =
   (concatMap maximumRows fixes, foldr1 (.) (map (flip (//>)) fixes) board)
-  where fixes = map (fix board coords ) $
-          zip3
-            dirs
-            (map prevStoneIn dirs)
-            (map prevRowsIn dirs)
+  where fixes = map (fix board coords) $
+          zipWith (\a (b,c) -> (a,b,c)) dirs $ map prevIn dirs
         dirs = [West .. NorthEast]
-        prevStoneIn dir = getStone board $ goTo coords dir 1
-        prevRowsIn dir  = getRow board (goTo coords dir 1) dir
+        prevIn dir
+          | goTo coords dir 1 `isOutOfBoundsOf` board = (Nothing, 0)
+          | otherwise = ( getStone board (goTo coords dir 1)
+                        , getRow   board (goTo coords dir 1) dir
+                        )
 
 -- 'fix' fixes a single continuous 'Row'. It is basically a helper
 -- function for 'fixRows'.
@@ -167,3 +168,7 @@ getRow (Board arr) coords dir = snd (arr ! coords) ! dir
 -- Nothing, respectively.
 getStone :: Board -> Coords -> Maybe Stone
 getStone (Board arr) coords = fst (arr ! coords)
+
+-- | 'getColor' takes a 'Stone' and returns its 'Color'
+getColor :: Stone -> Color
+getColor (Stone c) = c
