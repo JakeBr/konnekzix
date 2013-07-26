@@ -109,16 +109,19 @@ main = do
   boxPackStart menu menubar PackNatural 0
 
   newGameAction `on` actionActivated $ putStrLn "New Game!"
+
   nameAction    `on` actionActivated $ newName nameIO
+
   colorAction   `on` actionActivated $ do
     newColors <- pickColors
     forM_ newColors (\(usage, color) ->
                       case usage of
-                        "Foreground" -> writeIORef foreColorIO  color
-                        "Background" -> writeIORef backColorIO  color
-                        "PieceBlack" -> writeIORef blackColorIO color
-                        "PieceWhite" -> writeIORef whiteColorIO color
-                        _            -> return ())
+                        Foreground -> writeIORef foreColorIO  color
+                        Background -> writeIORef backColorIO  color
+                        PieceBlack -> writeIORef blackColorIO color
+                        PieceWhite -> writeIORef whiteColorIO color)
+    widgetQueueDraw boardDA
+
   aboutAction `on` actionActivated $ putStrLn "ABOUT!" -- TODO: About action.
                                                        -- Just a dialog.
 
@@ -287,7 +290,7 @@ parseColor s = case reads s of
                  _              -> Nothing
 
 -- 'pickColors' opens a dialog so that the user can pick custom colors
-pickColors :: IO [(String, Color)]
+pickColors :: IO [(ColoredThing, Color)]
 pickColors = do
   dialog <- dialogNew
   set dialog
@@ -316,13 +319,13 @@ pickColors = do
       bgCol <- colorButtonGetColor sButtonBG
       pbCol <- colorButtonGetColor sButtonPB
       pwCol <- colorButtonGetColor sButtonPW
-      let colors = [ ("Foreground", fgCol)
-                   , ("Background", bgCol)
-                   , ("PieceBlack", pbCol)
-                   , ("PieceWhite", pwCol)
+      let colors = [ (Foreground, fgCol)
+                   , (Background, bgCol)
+                   , (PieceBlack, pbCol)
+                   , (PieceWhite, pwCol)
                    ]
       forM_ colors (\(usage, color) -> do
-                     file <- openFile ("col" ++ usage) WriteMode
+                     file <- openFile ("col" ++ colToStr usage) WriteMode
                      hPutStrLn file $ encode color
                      hClose file)
       widgetDestroy dialog
@@ -333,17 +336,18 @@ pickColors = do
 createColorSelectionArea :: ColoredThing -> IO (HBox, ColorButton)
 createColorSelectionArea usage = do
   hBox <- hBoxNew True 0
-  label <- labelNew $ Just $
-    case usage of
-      PieceWhite -> "White Piece"
-      PieceBlack -> "Black Piece"
-      _          -> show usage
-    ++ ":"
+  label <- labelNew $ Just $ colToStr usage ++ ":"
   color <- getColor usage
   button <- colorButtonNewWithColor color
   boxPackStartDefaults hBox label
   boxPackStartDefaults hBox button
   return (hBox, button)
+
+colToStr :: ColoredThing -> String
+colToStr usage = case usage of
+                   PieceWhite -> "White Piece"
+                   PieceBlack -> "Black Piece"
+                   _          -> show usage
 
 -- 'encode' converts a Color to a String
 encode :: Color -> String
