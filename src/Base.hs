@@ -20,7 +20,6 @@ module Base
   , Color(..)
   , Coords
   , Row
-  , Size
   , empty
   , placeStone
   , getStone
@@ -62,12 +61,9 @@ type Coords = (Int,Int)
 -- means either above it, to the left, to the top-left or to the top-right.)
 type Row = Int
 
--- | Each board has a 'Size'. A board has <size>^2 intersections.
-type Size = Int
-
 -- | The 'empty' function lets you construct a 'Board'. You need to give it
 -- size which is greater than five.
-empty :: Size -> Either String Board
+empty :: Int -> Either String Board
 empty s = if s < 6
             then Left "The size must be greater than five!"
             else Right . Board . fmap ((Nothing,) . listArray (West,NorthEast))

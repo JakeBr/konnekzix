@@ -37,17 +37,14 @@ data ColoredThing = Foreground
 -- | the 'main' function starts up the GUI and everything else.
 main :: IO ()
 main = do
-  foreColor    <- getColor Foreground
-  backColor    <- getColor Background
-  blackColor   <- getColor PieceBlack
-  whiteColor   <- getColor PieceWhite
-  foreColorIO  <- newIORef foreColor
-  backColorIO  <- newIORef backColor
-  blackColorIO <- newIORef blackColor
-  whiteColorIO <- newIORef whiteColor
+  let colorIORef u = newIORef =<< getColor u
+  foreColorIO  <- colorIORef Foreground
+  backColorIO  <- colorIORef Background
+  whiteColorIO <- colorIORef PieceWhite
+  blackColorIO <- colorIORef PieceBlack
   nameIO       <- newIORef ""
 
-  boardIO      <- newIORef $ head . rights . return . empty $ 19
+  boardIO      <- newIORef . fromEither $ empty 19
 
   initGUI
 
@@ -63,9 +60,9 @@ main = do
   menu <- vBoxNew False 0
   containerAdd window menu
 
-  contents <- hBoxNew False 0
-  boardDA <- drawingAreaNew
-  deleteMe <- labelNew $ Just "Foo" -- TODO: Change to Menu
+  contents  <- hBoxNew False 0
+  boardDA   <- drawingAreaNew
+  deleteMe  <- labelNew $ Just "Foo" -- TODO: Change to Menu
   deleteMe2 <- labelNew $ Just "Bar" -- TODO: Change to Chat
 
   boardDA `on` sizeRequest $ return $ Requisition 1000 1000
@@ -80,25 +77,21 @@ main = do
 
   gameMenuAction <- actionNew "GMA" "Game"        Nothing Nothing
   prefMenuAction <- actionNew "PMA" "Preferences" Nothing Nothing
-  helpMenuAction <- actionNew "HMA" "Help"        Nothing Nothing
 
   newGameAction <- actionNew "NEWA" "New..." Nothing Nothing
   nameAction <- actionNew "NAMA" "Change Name..." Nothing Nothing
   colorAction <- actionNew "COLA" "Choose Colors..."
     Nothing $ Just "stockColorPicker"
-  aboutAction <- actionNew "ABTA" "About" Nothing $ Just "stockAbout"
 
   agr <- actionGroupNew "AGR"
   mapM_ (actionGroupAddAction agr)
     [ gameMenuAction
     , prefMenuAction
-    , helpMenuAction
     ]
   mapM_ (actionGroupAddAction agr)
     [ newGameAction
     , nameAction
     , colorAction
-    , aboutAction
     ]
 
   ui <- uiManagerNew
@@ -122,9 +115,6 @@ main = do
                         PieceWhite -> writeIORef whiteColorIO color)
     widgetQueueDraw boardDA
 
-  aboutAction `on` actionActivated $ putStrLn "ABOUT!" -- TODO: About action.
-                                                       -- Just a dialog.
-
   widgetShowAll window
 
   name <- getName
@@ -133,7 +123,6 @@ main = do
   mainGUI
 
 -- 'drawboard' draws the board.
--- TODO: recall function when colors are changed
 drawboard :: DrawingArea -> IORef Board ->
   IORef Color -> IORef Color -> IORef Color -> IORef Color -> IO ()
 drawboard da bIO foIO baIO blIO whIO = do
@@ -173,7 +162,8 @@ drawboardDALines d gc = do
     let ps = [194,500,806] in [ (x,y) | x <- ps, y <- ps ]
 
 drawCircle :: DrawableClass d => d -> GC -> Int -> (Int, Int) -> IO ()
-drawCircle d gc r (x,y) = drawArc d gc True (x-r) (y-r) (2*r) (2*r) 0 (360*64)
+drawCircle d gc r (x,y) =
+  drawArc d gc True (x - r) (y - r) (2 * r) (2 * r) 0 (360 * 64)
 
 -- 'extractUserName' takes the whole Environment and returns a username.
 extractUserName :: [(String,String)] -> String
@@ -325,7 +315,7 @@ pickColors = do
                    , (PieceWhite, pwCol)
                    ]
       forM_ colors (\(usage, color) -> do
-                     file <- openFile ("col" ++ colToStr usage) WriteMode
+                     file <- openFile ("col" ++ show usage) WriteMode
                      hPutStrLn file $ encode color
                      hClose file)
       widgetDestroy dialog
@@ -336,18 +326,18 @@ pickColors = do
 createColorSelectionArea :: ColoredThing -> IO (HBox, ColorButton)
 createColorSelectionArea usage = do
   hBox <- hBoxNew True 0
-  label <- labelNew $ Just $ colToStr usage ++ ":"
+  label <- labelNew $ Just $ colNameToString usage ++ ":"
   color <- getColor usage
   button <- colorButtonNewWithColor color
   boxPackStartDefaults hBox label
   boxPackStartDefaults hBox button
   return (hBox, button)
 
-colToStr :: ColoredThing -> String
-colToStr usage = case usage of
-                   PieceWhite -> "White Piece"
-                   PieceBlack -> "Black Piece"
-                   _          -> show usage
+colNameToString :: ColoredThing -> String
+colNameToString usage = case usage of
+                          PieceWhite -> "White Piece"
+                          PieceBlack -> "Black Piece"
+                          _          -> show usage
 
 -- 'encode' converts a Color to a String
 encode :: Color -> String
@@ -355,6 +345,10 @@ encode color = "[" ++ first ++ "," ++ second ++ "," ++ third ++ "]"
   where (first , rest ) = break (== ' ') . drop 6 $ show color
         (second, rest') = break (== ' ') . tail $ rest
         third           = tail rest'
+
+-- 'fromEither' is the 'Either' equivalent to 'fromJust'
+fromEither :: Either a b -> b
+fromEither = head . rights . return
 
 
 -- 'uiDecl' is the declaration for the menubar
@@ -368,9 +362,6 @@ uiDecl =
   \    <menu action=\"PMA\">\
   \      <menuitem action=\"NAMA\" />\
   \      <menuitem action=\"COLA\" />\
-  \    </menu>\
-  \    <menu action=\"HMA\">\
-  \      <menuitem action=\"ABTA\" />\
   \    </menu>\
   \  </menubar>\
   \</ui>"
